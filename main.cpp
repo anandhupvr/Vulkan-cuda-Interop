@@ -19,9 +19,7 @@ int main() {
 
 	cv::Mat img = cv::imread("/home/user1/Documents/works/Vulkan-cuda-Interop/statue.jpg", CV_LOAD_IMAGE_COLOR);
 	CudaFuns cudafuns;
-	// cudafuns.allocateMem();
 	
-
 	imgShareableHandle = cudafuns.cudaops(img.data, img.cols, img.rows);
 	cv::imshow("test", img);
 	cv::waitKey(0);

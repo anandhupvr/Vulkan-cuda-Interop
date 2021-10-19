@@ -37,7 +37,8 @@ __global__ void copy_kernel(unsigned char* input, unsigned char* output, int wid
     int channel =4;
     //Only valid threads perform memory I/O
     if((x<width) && (y<height))
-    {
+    {   
+        // converting bgr to rgba format for vulkan
         output[((y * width * channel) + x * channel) + 0 ] = input[((y * width * 3) + x * 3) + 2 ];
         output[((y * width * channel) + x * channel) + 1 ] = input[((y * width * 3) + x * 3) + 1 ];
         output[((y * width * channel) + x * channel) + 2 ] = input[((y * width * 3) + x * 3) + 0 ];
@@ -51,7 +52,6 @@ void CudaFuns::allocateMem(size_t imgSize){
     int cudaDevice = 0;
     size_t granularity = 0;
     cudaSetDevice(cudaDevice);
-    // CUdeviceptr d_ptr = 0U;
 
     CUmemGenericAllocationHandle cudaImgHandle;
 
@@ -71,6 +71,8 @@ void CudaFuns::allocateMem(size_t imgSize){
     cuMemAddressReserve(&d_ptr, sizeRounded, granularity, 0U, 0);
     cuMemCreate(&cudaImgHandle, sizeRounded, &allocProp, 0);
 
+    // Shareable Handles(a file descriptor on Linux and NT Handle on Windows), used for sharing cuda
+    // allocated memory with Vulkan
     cuMemExportToShareableHandle((void *)&imgShareableHandle, cudaImgHandle, ipcHandleTypeFlag, 0);
 
 
@@ -94,7 +96,9 @@ int CudaFuns::cudaops(unsigned char* input, int width, int height) {
 
     allocateMem(imgSize);
 
+    // Pointer to Cuda allocated buffers which are imported and used by vulkan as vertex buffer
     unsigned char *d_output;
+
     d_output = (unsigned char*)d_ptr;
     size_t colorBytes = width * height * 3;
     unsigned char *d_input;
