@@ -28,7 +28,7 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}  "-g")
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
-CUDA_COMPILE(cuda cudafuns/cudafuns.cu)
+CUDA_COMPILE(cuda cudafuns.cu)
 
 
 add_executable(main
@@ -46,4 +46,5 @@ target_include_directories(main PUBLIC
 target_link_libraries(main
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    -lglfw
     -lcuda)
