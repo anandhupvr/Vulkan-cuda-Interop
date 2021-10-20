@@ -2,7 +2,7 @@
 
 #define ROUND_UP_TO_GRANULARITY(x, n) (((x + n - 1) / n) * n)
 #define SAFE_CALL(call,msg) _safe_cuda_call((call),(msg),__FILE__,__LINE__)
-
+CUmemAllocationHandleType ipcHandleTypeFlag = CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR;
 void getDefaultSecurityDescriptor(CUmemAllocationProp *prop) {
 #if defined(__linux__)
     return;
@@ -30,31 +30,32 @@ void getDefaultSecurityDescriptor(CUmemAllocationProp *prop) {
 #endif
 }
 
-__global__ void copy_kernel(unsigned char* input, unsigned char* output, int width, int height) {
-    //2D Index of current thread
-    const int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const int y = blockIdx.y * blockDim.y + threadIdx.y;
-    int channel =4;
-    //Only valid threads perform memory I/O
-    if((x<width) && (y<height))
-    {   
-        // converting bgr to rgba format for vulkan
-        output[((y * width * channel) + x * channel) + 0 ] = input[((y * width * 3) + x * 3) + 2 ];
-        output[((y * width * channel) + x * channel) + 1 ] = input[((y * width * 3) + x * 3) + 1 ];
-        output[((y * width * channel) + x * channel) + 2 ] = input[((y * width * 3) + x * 3) + 0 ];
 
-        output[((y * width * channel) + x * channel) + 3 ] = (unsigned char)0;
+void CudaFuns::allocateMem(size_t outSize){
+
+    int deviceCount;
+    int cudaDevice = cudaInvalidDeviceId;
+    cudaGetDeviceCount(&deviceCount);
+    // need to fix
+    for (int dev = 0; dev < deviceCount; ++dev) {
+        cudaDeviceProp devProp = { };
+        cudaGetDeviceProperties(&devProp, dev);
+        if (true) {
+            cudaDevice = dev;
+            break;
+        }
+
+        // if (isVkPhysicalDeviceUuid(&devProp.uuid)) {
+        //     cudaDevice = dev;
+        //     break;
+        // }
     }
-}
-
-void CudaFuns::allocateMem(size_t imgSize){
-
-    int cudaDevice = 0;
+    // if (cudaDevice == cudaInvalidDeviceId) {
+    //     throw std::runtime_error("No Suitable device found!");
+    // }
     size_t granularity = 0;
     cudaSetDevice(cudaDevice);
-
     CUmemGenericAllocationHandle cudaImgHandle;
-
 
     CUmemAllocationProp allocProp = { };
     allocProp.type = CU_MEM_ALLOCATION_TYPE_PINNED;
@@ -66,19 +67,17 @@ void CudaFuns::allocateMem(size_t imgSize){
     getDefaultSecurityDescriptor(&allocProp);
 
     cuMemGetAllocationGranularity(&granularity, &allocProp, CU_MEM_ALLOC_GRANULARITY_RECOMMENDED);
-
-    size_t sizeRounded = ROUND_UP_TO_GRANULARITY(imgSize, granularity);
-    cuMemAddressReserve(&d_ptr, sizeRounded, granularity, 0U, 0);
-    cuMemCreate(&cudaImgHandle, sizeRounded, &allocProp, 0);
-
-    // Shareable Handles(a file descriptor on Linux and NT Handle on Windows), used for sharing cuda
-    // allocated memory with Vulkan
+    size_t imgSize = ROUND_UP_TO_GRANULARITY(outSize, granularity);
+    cuMemAddressReserve(&d_ptr, imgSize, granularity, 0U, 0);
+    cuMemCreate(&cudaImgHandle, imgSize, &allocProp, 0);
     cuMemExportToShareableHandle((void *)&imgShareableHandle, cudaImgHandle, ipcHandleTypeFlag, 0);
+
 
 
     cuMemMap(d_ptr, imgSize, 0, cudaImgHandle, 0);
     cuMemRelease(cudaImgHandle);
 
+    d_output = (unsigned char*)d_ptr;
     CUmemAccessDesc accessDescriptor = {};
     accessDescriptor.location.id = cudaDevice;
     accessDescriptor.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
@@ -90,26 +89,48 @@ void CudaFuns::allocateMem(size_t imgSize){
 
 }
 
-int CudaFuns::cudaops(unsigned char* input, int width, int height) {
+ // need to fix
+__global__ void resizeKernel(unsigned char *orig, unsigned char *resized, int w, int h, int w1, int h1) {
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+    if(x >= w || y >= h) {
+        return;
+    }
 
-    size_t imgSize = width * height * 4;
+    unsigned char px1 = orig[((y*2 * w * 3) + x * 3 * 2) + 2];
+    unsigned char py1 = orig[((y*2 * w * 3) + x * 3 * 2) + 1];
+    unsigned char pz1 = orig[((y*2 * w * 3) + x * 3 * 2) + 0];
 
-    allocateMem(imgSize);
+    // unsigned char px2 = orig[((y*2 + 1) * w  * 3) + (x * 3 * 2 + 1) + 2];
+    // unsigned char py2 = orig[((y*2 + 1) * w  * 3) + (x * 3 * 2 + 1) + 1];
+    // unsigned char pz2 = orig[((y*2 + 1) * w  * 3) + (x * 3 * 2 + 1) + 0];
 
-    // Pointer to Cuda allocated buffers which are imported and used by vulkan as vertex buffer
-    unsigned char *d_output;
+    // resized[((y * w1 * 4) + x * 4) + 0] = (px1 + px2) / 2;
+    // resized[((y * w1 * 4) + x * 4) + 1] = (py1 + py2) / 2;
+    // resized[((y * w1 * 4) + x * 4) + 2] = (pz1 + pz2) / 2;
+    // resized[((y * w1 * 4) + x * 4) + 3] = (unsigned char)0;
 
-    d_output = (unsigned char*)d_ptr;
-    size_t colorBytes = width * height * 3;
-    unsigned char *d_input;
-    cudaMalloc<unsigned char>(&d_input, colorBytes);
-    cudaMemcpy(d_input, input, colorBytes, cudaMemcpyHostToDevice);
-    const dim3 block(16,16);
-    const dim3 grid((width + block.x - 1)/block.x, (height + block.y - 1)/block.y);
+    resized[((y * w1 * 4) + x * 4) + 0] = px1;
+    resized[((y * w1 * 4) + x * 4) + 1] = py1;
+    resized[((y * w1 * 4) + x * 4) + 2] = pz1;
+    resized[((y * w1 * 4) + x * 4) + 3] = (unsigned char)0;
 
-    copy_kernel<<<grid,block>>>(d_input, d_output, width, height);
-    cudaDeviceSynchronize();
-    cudaFree(d_input);
+
+}
+
+int CudaFuns::cudaops(unsigned char *img, int w, int h, int w1, int h1) {
+
+    allocateMem(w1 * h1 * 4);
+    unsigned char *orig = NULL;
+    cudaMalloc(&orig, sizeof(unsigned char) * w * h * 3);
+    cudaMemcpy(orig, img, sizeof(unsigned char) * w * h * 3, cudaMemcpyHostToDevice);
+
+    int count = 10;
+    dim3 blocks((w1 + count)/ count, (h1 + count) / count);
+    dim3 threads(count, count);
+    resizeKernel<<<blocks, threads>>>(orig, d_output, w, h, w1, h1);
+    cudaPeekAtLastError();
+    cudaFree(orig);
 
     return imgShareableHandle;
 
