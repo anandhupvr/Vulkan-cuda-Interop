@@ -3,6 +3,7 @@ project(interop LANGUAGES CXX CUDA)
 
 find_package(OpenCV 3.2 REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(Vulkan REQUIRED)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories(${CUDA_INCLUDE_DIRS})
@@ -33,10 +34,12 @@ CUDA_COMPILE(cuda cudafuns.cu)
 
 add_executable(main
                main.cpp
+               VulkanBase.cpp
                ${cuda}
                )
+
+target_include_directories(main PUBLIC ${Vulkan_INCLUDE_DIRS})
 # target_compile_features(main PRIVATE cxx_std_17)
-# set_target_properties(main PROPERTIES FORCE_LANGUAGE CUDA)
 target_include_directories(main PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CUDA_INCLUDE_DIRS}
@@ -46,5 +49,6 @@ target_include_directories(main PUBLIC
 target_link_libraries(main
     ${CUDA_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    Vulkan::Vulkan
     -lglfw
     -lcuda)
