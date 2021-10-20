@@ -37,7 +37,7 @@ int main() {
     //the handle obtained here will be passed to vulkan to import the allocation
     imgShareableHandle = cudafuns.cudaops((unsigned char*) img.data, width, height, width/2, height/2);
 
-    VulkanBase app(width/2, height);
+    VulkanBase app(width/2, height/2);
     try {
         app.run((void *)(uintptr_t)imgShareableHandle, app.getDefaultMemHandleType(), bufSize * sizeof(unsigned char));
     } catch (const std::exception& e) {
