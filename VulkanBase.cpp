@@ -3,9 +3,9 @@
 
 
 
-VulkanBase::VulkanBase() :
-    WIDTH(512),
-    HEIGHT(512),
+VulkanBase::VulkanBase(int w, int h) :
+    WIDTH(w),
+    HEIGHT(h),
     MAX_FRAMES_IN_FLIGHT(2),
     currentFrame(0),
     framebufferResized(false),
@@ -247,6 +247,7 @@ void VulkanBase::createInstance() {
 
 
     auto extensions = getRequiredExtensions();
+    // external memory extensions
     extensions.push_back(VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME);
     extensions.push_back(VK_KHR_EXTERNAL_SEMAPHORE_CAPABILITIES_EXTENSION_NAME);
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
@@ -345,6 +346,7 @@ void VulkanBase::createLogicalDevice() {
 
     createInfo.pEnabledFeatures = &deviceFeatures;
 
+    // external memory extensions
     deviceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
     deviceExtensions.push_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
     deviceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
@@ -671,7 +673,7 @@ void VulkanBase::createTextureImage(void *handle, VkExternalMemoryHandleTypeFlag
     VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
     int texWidth, texHeight, texChannels;
 
-    
+
     VkExternalMemoryBufferCreateInfo extbufInfo = {};
     extbufInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
     extbufInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
@@ -709,8 +711,8 @@ void VulkanBase::createTextureImage(void *handle, VkExternalMemoryHandleTypeFlag
     // Binding cuda created buffer to vulkan buffer
     vkBindBufferMemory(device, cpyBuffer, cpyBufferMemory, 0);    
 
-    // createExternalSemaphore(m_vkSignalSemaphore, VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
-    // createExternalSemaphore(m_vkWaitSemaphore, VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
+    createExternalSemaphore(m_vkSignalSemaphore, VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
+    createExternalSemaphore(m_vkWaitSemaphore, VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
 
     createImage(WIDTH, HEIGHT, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
     transitionImageLayout(textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1401,10 +1403,6 @@ bool VulkanBase::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 
     std::vector<VkExtensionProperties> availableExtensions(extensionCount);
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-    // deviceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
-    // deviceExtensions.push_back(VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME);
-    // deviceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
-    // deviceExtensions.push_back(VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME);
 
     std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 

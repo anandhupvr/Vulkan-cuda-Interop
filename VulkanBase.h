@@ -23,7 +23,7 @@
 
 class VulkanBase {
 public:
-    VulkanBase();
+    VulkanBase(int w, int h);
 	void run(void *handle, VkExternalMemoryHandleTypeFlagBits handleType, size_t size);
     VkExternalMemoryHandleTypeFlagBits getDefaultMemHandleType();
     void createExternalSemaphore(VkSemaphore& semaphore, VkExternalSemaphoreHandleTypeFlagBits handleType);
